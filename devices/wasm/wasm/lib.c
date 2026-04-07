@@ -1,43 +1,33 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <emscripten.h>
 
-#include <sinter/nanbox.h>
-#include <sinter/display.h>
 #include <sinter.h>
+#include <sinter/display.h>
+#include <sinter/nanbox.h>
 
 static char *heap = NULL;
 
-static const char *fault_names[] = {
-  "no fault",
-  "out of memory",
-  "type error",
-  "divide by zero",
-  "stack overflow",
-  "stack underflow",
-  "uninitialised load",
-  "invalid load",
-  "invalid program",
-  "internal error",
-  "incorrect function arity",
-  "program called error()",
-  "uninitialised heap"
-};
+static const char *fault_names[] = {"no fault",
+                                    "out of memory",
+                                    "type error",
+                                    "divide by zero",
+                                    "stack overflow",
+                                    "stack underflow",
+                                    "uninitialised load",
+                                    "invalid load",
+                                    "invalid program",
+                                    "internal error",
+                                    "incorrect function arity",
+                                    "program called error()",
+                                    "uninitialised heap"};
 
-static const char *type_names[] = {
-  "unknown",
-  "undefined",
-  "null",
-  "boolean",
-  "integer",
-  "float",
-  "string",
-  "array",
-  "function"
-};
+static const char *type_names[] = {"unknown", "undefined", "null",
+                                   "boolean", "integer",   "float",
+                                   "string",  "array",     "function"};
 
 void display_object_result(sinter_value_t *res, _Bool is_error) {
   if (res->type == sinter_type_array || res->type == sinter_type_function) {
@@ -62,6 +52,11 @@ static void print_flush(bool is_error) {
   fprintf(is_error ? stderr : stdout, "\n");
 }
 
+/** Browser only: EV3/desktop use runner.c’s get_time_ms + clock_gettime. */
+static uint64_t wasm_get_time_ms(void) {
+  return (uint64_t)emscripten_get_now();
+}
+
 EMSCRIPTEN_KEEPALIVE
 void siwasm_alloc_heap(size_t size) {
   if (heap) {
@@ -70,7 +65,8 @@ void siwasm_alloc_heap(size_t size) {
 
   heap = malloc(size);
   if (!heap) {
-    fprintf(stderr, "Warning: failed to allocate heap of size %ld; try again\n", size);
+    fprintf(stderr, "Warning: failed to allocate heap of size %ld; try again\n",
+            size);
     sinter_setup_heap(0, 0);
     return;
   }
@@ -78,14 +74,10 @@ void siwasm_alloc_heap(size_t size) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-void *siwasm_alloc(size_t size) {
-  return malloc(size);
-}
+void *siwasm_alloc(size_t size) { return malloc(size); }
 
 EMSCRIPTEN_KEEPALIVE
-void siwasm_free(void *ptr) {
-  free(ptr);
-}
+void siwasm_free(void *ptr) { free(ptr); }
 
 EMSCRIPTEN_KEEPALIVE
 void siwasm_run(unsigned char *code, size_t code_size) {
@@ -93,18 +85,23 @@ void siwasm_run(unsigned char *code, size_t code_size) {
   sinter_printer_integer = print_integer;
   sinter_printer_string = print_string;
   sinter_printer_flush = print_flush;
+  sinter_get_time_ms = wasm_get_time_ms;
 
   sinter_value_t result;
-  sinter_fault_t fault = (uint8_t) sinter_run(code, code_size, &result);
+  sinter_fault_t fault = (uint8_t)sinter_run(code, code_size, &result);
 
   if (fault) {
     printf("Program exited unsuccessfully: %s\n",
-      fault >= (sizeof(fault_names)/sizeof(fault_names[0])) ? "(unknown fault)" : fault_names[fault]);
+           fault >= (sizeof(fault_names) / sizeof(fault_names[0]))
+               ? "(unknown fault)"
+               : fault_names[fault]);
     return;
   }
 
   printf("Program exited with result type %s: ",
-    result.type >= (sizeof(type_names)/sizeof(type_names[0])) ? "(unknown type)" : type_names[result.type]);
+         result.type >= (sizeof(type_names) / sizeof(type_names[0]))
+             ? "(unknown type)"
+             : type_names[result.type]);
 
   switch (result.type) {
   case sinter_type_undefined:

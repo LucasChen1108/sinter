@@ -1,51 +1,41 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-#include <time.h>
 #include <sinter.h>
+#include <time.h>
 
 #define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
 static uint64_t get_time_ms(void) {
   struct timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  return (uint64_t) ts.tv_sec * 1000u + (uint64_t) ts.tv_nsec / 1000000u;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
 }
 
-static const char *fault_names[] = {
-  "no fault",
-  "out of memory",
-  "type error",
-  "divide by zero",
-  "stack overflow",
-  "stack underflow",
-  "uninitialised load",
-  "invalid load",
-  "invalid program",
-  "internal error",
-  "incorrect function arity",
-  "program called error()",
-  "uninitialised heap"
-};
+static const char *fault_names[] = {"no fault",
+                                    "out of memory",
+                                    "type error",
+                                    "divide by zero",
+                                    "stack overflow",
+                                    "stack underflow",
+                                    "uninitialised load",
+                                    "invalid load",
+                                    "invalid program",
+                                    "internal error",
+                                    "incorrect function arity",
+                                    "program called error()",
+                                    "uninitialised heap"};
 
-static const char *type_names[] = {
-  "unknown",
-  "undefined",
-  "null",
-  "boolean",
-  "integer",
-  "float",
-  "string",
-  "array",
-  "function"
-};
+static const char *type_names[] = {"unknown", "undefined", "null",
+                                   "boolean", "integer",   "float",
+                                   "string",  "array",     "function"};
 
 void setup_internals(void);
 void display_object_result(sinter_value_t *res, _Bool is_error);
@@ -60,22 +50,22 @@ ssize_t check_posix(ssize_t result, const char *msg) {
 }
 
 static void print_string(const char *s, bool is_error) {
-  (void) is_error;
+  (void)is_error;
   printf("%s", s);
 }
 
 static void print_integer(int32_t v, bool is_error) {
-  (void) is_error;
+  (void)is_error;
   printf("%d", v);
 }
 
 static void print_float(float v, bool is_error) {
-  (void) is_error;
+  (void)is_error;
   printf("%f", v);
 }
 
 static void print_flush(bool is_error) {
-  (void) is_error;
+  (void)is_error;
   printf("\n");
 }
 
@@ -85,14 +75,16 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  int program_fd = check_posix(open(argv[1], O_RDONLY), "Failed to open program");
+  int program_fd =
+      check_posix(open(argv[1], O_RDONLY), "Failed to open program");
   off_t size;
   {
     struct stat stat_buf;
     check_posix(fstat(program_fd, &stat_buf), "fstat failed");
     size = stat_buf.st_size;
   }
-  const unsigned char *program = mmap(NULL, size, PROT_READ, MAP_SHARED, program_fd, 0);
+  const unsigned char *program =
+      mmap(NULL, size, PROT_READ, MAP_SHARED, program_fd, 0);
   if (program == MAP_FAILED) {
     check_posix(-1, "mmap failed");
   }
@@ -108,12 +100,16 @@ int main(int argc, char *argv[]) {
   void *heap = malloc(0x100000); // 1MB
   sinter_setup_heap(heap, 0x100000);
 
-  sinter_value_t result = { 0 };
+  sinter_value_t result = {0};
   sinter_fault_t fault = sinter_run(program, size, &result);
 
   printf("Program exited with fault %s and result type %s: ",
-    fault >= (sizeof(fault_names)/sizeof(fault_names[0])) ? "(unknown fault)" : fault_names[fault],
-    result.type >= (sizeof(type_names)/sizeof(type_names[0])) ? "(unknown type)" : type_names[result.type]);
+         fault >= (sizeof(fault_names) / sizeof(fault_names[0]))
+             ? "(unknown fault)"
+             : fault_names[fault],
+         result.type >= (sizeof(type_names) / sizeof(type_names[0]))
+             ? "(unknown type)"
+             : type_names[result.type]);
 
   switch (result.type) {
   case sinter_type_undefined:
